@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light dark;
   --background: #ffffff;
   --foreground: #0f172a;
   --muted: #f1f5f9;
@@ -48,4 +49,11 @@ body {
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Native dropdown options inherit the page color, which on Windows renders
+   light text on a white popup. Force a high-contrast pairing instead. */
+select option {
+  background-color: var(--card);
+  color: var(--foreground);
 }
