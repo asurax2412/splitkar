@@ -98,9 +98,15 @@ export function AddMemberForm({ groupId }: { groupId: string }) {
             onFocus={(e) => e.currentTarget.select()}
           />
           <div className="flex gap-2 flex-wrap">
-            <a href={mailtoHref}>
-              <Button size="sm" type="button">Email invite</Button>
-            </a>
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => {
+                window.location.href = mailtoHref;
+              }}
+            >
+              Email invite
+            </Button>
             <Button size="sm" variant="outline" type="button" onClick={copyLink}>
               {invitePrompt.copied ? "Copied" : "Copy link"}
             </Button>
