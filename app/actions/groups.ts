@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { randomBytes } from "crypto";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
@@ -49,9 +48,12 @@ export async function createGroup(_prev: ActionState, formData: FormData): Promi
   redirect(`/groups/${group.id}`);
 }
 
-export async function addMemberByEmail(groupId: string, formData: FormData) {
+export async function addMemberByEmail(
+  groupId: string,
+  formData: FormData,
+): Promise<{ ok: true } | { error: string }> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!email) throw new Error("Email required");
+  if (!email) return { error: "Email required" };
 
   const supabase = await createClient();
   const { data: profile, error: pErr } = await supabase
@@ -59,15 +61,16 @@ export async function addMemberByEmail(groupId: string, formData: FormData) {
     .select("id")
     .eq("email", email)
     .maybeSingle();
-  if (pErr) throw pErr;
-  if (!profile) throw new Error("No splitkar user with that email. Ask them to sign up first.");
+  if (pErr) return { error: pErr.message };
+  if (!profile) return { error: "No splitkar user with that email. Ask them to sign up first." };
 
   const { error } = await supabase
     .from("group_members")
     .insert({ group_id: groupId, user_id: profile.id });
-  if (error && !error.message.includes("duplicate")) throw error;
+  if (error && !error.message.includes("duplicate")) return { error: error.message };
 
   revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
 }
 
 export async function removeMember(groupId: string, userId: string) {
@@ -82,9 +85,14 @@ export async function removeMember(groupId: string, userId: string) {
 }
 
 // URL-safe random token. 18 bytes → 24 base64url chars; collision-resistant
-// without being unwieldy in shared links.
+// without being unwieldy in shared links. Uses Web Crypto so this works on
+// both Node and Edge runtimes.
 function generateInviteToken() {
-  return randomBytes(18).toString("base64url");
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 async function inviteOrigin(): Promise<string> {
@@ -97,33 +105,41 @@ async function inviteOrigin(): Promise<string> {
 }
 
 export async function createGroupInvite(groupId: string): Promise<{ url: string } | { error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "You're not signed in." };
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "You're not signed in." };
 
-  const token = generateInviteToken();
-  const { error } = await supabase
-    .from("group_invites")
-    .insert({ token, group_id: groupId, created_by: user.id });
-  if (error) return { error: `Could not create invite: ${error.message}` };
+    const token = generateInviteToken();
+    const { error } = await supabase
+      .from("group_invites")
+      .insert({ token, group_id: groupId, created_by: user.id });
+    if (error) return { error: `Could not create invite: ${error.message}` };
 
-  const origin = await inviteOrigin();
-  return { url: `${origin}/invite/${token}` };
+    const origin = await inviteOrigin();
+    return { url: `${origin}/invite/${token}` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Unexpected error creating invite." };
+  }
 }
 
 export async function acceptGroupInvite(token: string): Promise<{ groupId: string } | { error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "You're not signed in." };
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "You're not signed in." };
 
-  const { data, error } = await supabase.rpc("accept_group_invite", { invite_token: token });
-  if (error) return { error: error.message };
-  if (!data) return { error: "Invite is invalid, revoked, or expired." };
+    const { data, error } = await supabase.rpc("accept_group_invite", { invite_token: token });
+    if (error) return { error: error.message };
+    if (!data) return { error: "Invite is invalid, revoked, or expired." };
 
-  revalidatePath("/groups");
-  return { groupId: data as string };
+    revalidatePath("/groups");
+    return { groupId: data as string };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Unexpected error accepting invite." };
+  }
 }

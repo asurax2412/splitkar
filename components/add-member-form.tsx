@@ -18,12 +18,12 @@ export function AddMemberForm({ groupId }: { groupId: string }) {
         const fd = new FormData();
         fd.set("email", email);
         startTransition(async () => {
-          try {
-            await addMemberByEmail(groupId, fd);
-            setEmail("");
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to add");
+          const result = await addMemberByEmail(groupId, fd);
+          if ("error" in result) {
+            setError(result.error);
+            return;
           }
+          setEmail("");
         });
       }}
       className="space-y-2"
