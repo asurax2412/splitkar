@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const search = useSearchParams();
+  const next = search.get("next") || "/dashboard";
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +36,7 @@ export default function SignupPage() {
       return;
     }
     if (data.session) {
-      router.push("/dashboard");
+      router.push(next);
       router.refresh();
     } else {
       setNeedConfirm(true);
@@ -91,10 +93,21 @@ export default function SignupPage() {
       </form>
       <p className="mt-6 text-sm text-center text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/login" className="text-primary hover:underline">
+        <Link
+          href={`/login${next !== "/dashboard" ? `?next=${encodeURIComponent(next)}` : ""}`}
+          className="text-primary hover:underline"
+        >
           Log in
         </Link>
       </p>
     </Card>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<Card><p className="text-sm text-muted-foreground">Loading…</p></Card>}>
+      <SignupForm />
+    </Suspense>
   );
 }

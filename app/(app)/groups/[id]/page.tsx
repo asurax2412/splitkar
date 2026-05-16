@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AddMemberForm } from "@/components/add-member-form";
+import { InviteLinkButton } from "@/components/invite-link-button";
 import { Plus, Receipt, ArrowRightLeft } from "lucide-react";
 
 export default async function GroupDetailPage({
@@ -87,6 +88,9 @@ export default async function GroupDetailPage({
           ))}
         </ul>
         <AddMemberForm groupId={id} />
+        <div className="mt-4 pt-4 border-t border-border">
+          <InviteLinkButton groupId={id} />
+        </div>
       </Card>
 
       <Card>

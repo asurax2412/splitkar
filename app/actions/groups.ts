@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "crypto";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionState = { error?: string } | null;
@@ -77,4 +79,51 @@ export async function removeMember(groupId: string, userId: string) {
     .eq("user_id", userId);
   if (error) throw error;
   revalidatePath(`/groups/${groupId}`);
+}
+
+// URL-safe random token. 18 bytes → 24 base64url chars; collision-resistant
+// without being unwieldy in shared links.
+function generateInviteToken() {
+  return randomBytes(18).toString("base64url");
+}
+
+async function inviteOrigin(): Promise<string> {
+  const h = await headers();
+  const envOrigin = process.env.NEXT_PUBLIC_APP_URL;
+  if (envOrigin) return envOrigin.replace(/\/+$/, "");
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : "";
+}
+
+export async function createGroupInvite(groupId: string): Promise<{ url: string } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+
+  const token = generateInviteToken();
+  const { error } = await supabase
+    .from("group_invites")
+    .insert({ token, group_id: groupId, created_by: user.id });
+  if (error) return { error: `Could not create invite: ${error.message}` };
+
+  const origin = await inviteOrigin();
+  return { url: `${origin}/invite/${token}` };
+}
+
+export async function acceptGroupInvite(token: string): Promise<{ groupId: string } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+
+  const { data, error } = await supabase.rpc("accept_group_invite", { invite_token: token });
+  if (error) return { error: error.message };
+  if (!data) return { error: "Invite is invalid, revoked, or expired." };
+
+  revalidatePath("/groups");
+  return { groupId: data as string };
 }

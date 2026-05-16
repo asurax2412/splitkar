@@ -81,6 +81,17 @@ create table if not exists public.payments (
 
 create index if not exists payments_group_idx on public.payments(group_id, paid_at desc);
 
+create table if not exists public.group_invites (
+  token text primary key,
+  group_id uuid not null references public.groups(id) on delete cascade,
+  created_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  expires_at timestamptz,
+  revoked_at timestamptz
+);
+
+create index if not exists group_invites_group_idx on public.group_invites(group_id);
+
 -- =========================================================================
 -- TRIGGERS
 -- =========================================================================
@@ -136,6 +147,7 @@ alter table public.group_members   enable row level security;
 alter table public.expenses        enable row level security;
 alter table public.expense_shares  enable row level security;
 alter table public.payments        enable row level security;
+alter table public.group_invites   enable row level security;
 
 -- profiles: anyone authenticated can read (needed to look up friends by email),
 -- only the owner can update.
@@ -251,3 +263,79 @@ create policy "payments_delete" on public.payments
   for delete to authenticated using (
     from_user = auth.uid() or to_user = auth.uid()
   );
+
+-- group_invites: only members can list/create/revoke invites for their group.
+-- Non-members never read directly — they hit the security-definer RPCs below.
+drop policy if exists "invites_select_member" on public.group_invites;
+create policy "invites_select_member" on public.group_invites
+  for select to authenticated using (public.is_group_member(group_id));
+
+drop policy if exists "invites_insert_member" on public.group_invites;
+create policy "invites_insert_member" on public.group_invites
+  for insert to authenticated with check (
+    public.is_group_member(group_id) and created_by = auth.uid()
+  );
+
+drop policy if exists "invites_update_member" on public.group_invites;
+create policy "invites_update_member" on public.group_invites
+  for update to authenticated using (public.is_group_member(group_id));
+
+-- =========================================================================
+-- INVITE RPCs (security definer — let non-members read/accept by token only)
+-- =========================================================================
+
+-- Peek at an invite (group name + member count) so the /invite page can render
+-- before the user has joined. Returns null if token is invalid/expired/revoked.
+create or replace function public.preview_group_invite(invite_token text)
+returns table (group_id uuid, group_name text, group_type text, member_count int)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select g.id, g.name, g.type::text,
+    (select count(*)::int from public.group_members where group_members.group_id = g.id)
+  from public.group_invites i
+  join public.groups g on g.id = i.group_id
+  where i.token = invite_token
+    and i.revoked_at is null
+    and (i.expires_at is null or i.expires_at > now());
+$$;
+
+grant execute on function public.preview_group_invite(text) to authenticated, anon;
+
+-- Accept the invite as the calling user. Adds them to group_members if not
+-- already a member. Returns the group_id on success, raises on bad token.
+create or replace function public.accept_group_invite(invite_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group_id uuid;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select group_id into v_group_id
+  from public.group_invites
+  where token = invite_token
+    and revoked_at is null
+    and (expires_at is null or expires_at > now());
+
+  if v_group_id is null then
+    raise exception 'invite is invalid, revoked, or expired';
+  end if;
+
+  insert into public.group_members (group_id, user_id, role)
+  values (v_group_id, v_uid, 'member')
+  on conflict (group_id, user_id) do nothing;
+
+  return v_group_id;
+end;
+$$;
+
+grant execute on function public.accept_group_invite(text) to authenticated;
