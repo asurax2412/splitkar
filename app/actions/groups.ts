@@ -22,32 +22,16 @@ export async function createGroup(_prev: ActionState, formData: FormData): Promi
   } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };
 
-  // Self-heal: ensure profile row exists before inserting FK references.
-  const fullName =
-    (user.user_metadata?.full_name as string | undefined) ??
-    user.email?.split("@")[0] ??
-    "User";
-  await supabase
-    .from("profiles")
-    .upsert(
-      { id: user.id, email: user.email!, full_name: fullName },
-      { onConflict: "id" },
-    );
-
-  const { data: group, error } = await supabase
-    .from("groups")
-    .insert({ name, type, default_currency: currency, created_by: user.id })
-    .select("id")
-    .single();
+  const { data: groupId, error } = await supabase.rpc("create_group_with_admin", {
+    p_name: name,
+    p_type: type,
+    p_currency: currency,
+  });
   if (error) return { error: `Could not create group: ${error.message}` };
-
-  const { error: memberErr } = await supabase
-    .from("group_members")
-    .insert({ group_id: group.id, user_id: user.id, role: "admin" });
-  if (memberErr) return { error: `Could not add you to the group: ${memberErr.message}` };
+  if (!groupId) return { error: "Could not create group." };
 
   revalidatePath("/groups");
-  redirect(`/groups/${group.id}`);
+  redirect(`/groups/${groupId as string}`);
 }
 
 export async function addMemberByEmail(
