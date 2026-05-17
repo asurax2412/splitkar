@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AddMemberForm } from "@/components/add-member-form";
 import { InviteLinkButton } from "@/components/invite-link-button";
-import { Plus, Receipt, ArrowRightLeft } from "lucide-react";
+import { GroupDangerActions } from "@/components/group-danger-actions";
+import { Plus, Receipt, ArrowRightLeft, Pencil } from "lucide-react";
 
 export default async function GroupDetailPage({
   params,
@@ -26,6 +27,7 @@ export default async function GroupDetailPage({
   const total = myBalances.reduce((s, b) => s + b.amountCents, 0);
 
   const profileMap = new Map(members.map((m) => [m.user_id, m.profile]));
+  const isAdmin = group.created_by === user.id;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -110,7 +112,7 @@ export default async function GroupDetailPage({
               const myShare = shares.find((s) => s.expense_id === e.id && s.user_id === user.id);
               return (
                 <li key={e.id} className="py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">{e.description}</p>
                     <p className="text-xs text-muted-foreground">
                       {payer?.full_name ?? "Someone"} paid {formatMoney(e.amount_cents, e.currency)}
@@ -118,18 +120,27 @@ export default async function GroupDetailPage({
                       {format(new Date(e.expense_date), "d MMM yyyy")}
                     </p>
                   </div>
-                  <div className="text-right">
-                    {e.paid_by === user.id ? (
-                      <p className="text-positive text-sm font-medium">
-                        you lent {formatMoney(e.amount_cents - (myShare?.share_cents ?? 0))}
-                      </p>
-                    ) : myShare ? (
-                      <p className="text-negative text-sm font-medium">
-                        you owe {formatMoney(myShare.share_cents)}
-                      </p>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">not involved</p>
-                    )}
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      {e.paid_by === user.id ? (
+                        <p className="text-positive text-sm font-medium">
+                          you lent {formatMoney(e.amount_cents - (myShare?.share_cents ?? 0))}
+                        </p>
+                      ) : myShare ? (
+                        <p className="text-negative text-sm font-medium">
+                          you owe {formatMoney(myShare.share_cents)}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground text-sm">not involved</p>
+                      )}
+                    </div>
+                    <Link
+                      href={`/groups/${id}/expenses/${e.id}/edit`}
+                      aria-label="Edit expense"
+                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Link>
                   </div>
                 </li>
               );
@@ -161,6 +172,16 @@ export default async function GroupDetailPage({
           </ul>
         </Card>
       )}
+
+      <Card>
+        <h2 className="font-semibold mb-1">Group settings</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          {isAdmin
+            ? "As the group admin, you can delete this group permanently."
+            : "You can leave this group once all your balances are settled."}
+        </p>
+        <GroupDangerActions groupId={id} isAdmin={isAdmin} />
+      </Card>
     </div>
   );
 }

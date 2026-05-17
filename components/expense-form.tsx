@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createExpense } from "@/app/actions/expenses";
+import { createExpense, updateExpense } from "@/app/actions/expenses";
 import { rupeesToPaise, formatMoney } from "@/lib/money";
 import { resolveSplit } from "@/lib/splits";
 import { Button } from "@/components/ui/button";
@@ -15,26 +15,52 @@ type Member = { id: string; name: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+export type ExpenseInitial = {
+  expenseId: string;
+  description: string;
+  amountCents: number;
+  paidBy: string;
+  expenseDate: string;
+  splitType: SplitType;
+  participants: string[];
+  values: Record<string, number>;
+  notes: string | null;
+};
+
 export function ExpenseForm({
   groupId,
   members,
   defaultCurrency,
   myId,
+  initial,
 }: {
   groupId: string;
   members: Member[];
   defaultCurrency: string;
   myId: string;
+  initial?: ExpenseInitial;
 }) {
   const router = useRouter();
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState(myId);
-  const [expenseDate, setExpenseDate] = useState(today());
-  const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [participants, setParticipants] = useState<string[]>(members.map((m) => m.id));
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [notes, setNotes] = useState("");
+  const isEdit = !!initial;
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [amount, setAmount] = useState(
+    initial ? (initial.amountCents / 100).toFixed(2) : "",
+  );
+  const [paidBy, setPaidBy] = useState(initial?.paidBy ?? myId);
+  const [expenseDate, setExpenseDate] = useState(initial?.expenseDate ?? today());
+  const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? "equal");
+  const [participants, setParticipants] = useState<string[]>(
+    initial?.participants ?? members.map((m) => m.id),
+  );
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    if (!initial) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(initial.values)) {
+      out[k] = initial.splitType === "exact" ? (v / 100).toFixed(2) : String(v);
+    }
+    return out;
+  });
+  const [notes, setNotes] = useState(initial?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -84,7 +110,7 @@ export function ExpenseForm({
     }
     startTransition(async () => {
       try {
-        await createExpense({
+        const payload = {
           groupId,
           description,
           amountCents,
@@ -96,7 +122,12 @@ export function ExpenseForm({
           splitType,
           participants,
           values: numericValues,
-        });
+        };
+        if (isEdit && initial) {
+          await updateExpense({ ...payload, expenseId: initial.expenseId });
+        } else {
+          await createExpense(payload);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed");
       }
@@ -227,7 +258,7 @@ export function ExpenseForm({
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : "Save expense"}
+          {isPending ? "Saving…" : isEdit ? "Save changes" : "Save expense"}
         </Button>
         <Button type="button" variant="outline" onClick={() => router.back()}>
           Cancel

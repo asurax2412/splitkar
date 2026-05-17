@@ -62,7 +62,13 @@ export async function getGroupData(groupId: string) {
   });
 
   return {
-    group: group as { id: string; name: string; type: string; default_currency: string } | null,
+    group: group as {
+      id: string;
+      name: string;
+      type: string;
+      default_currency: string;
+      created_by: string;
+    } | null,
     members,
     expenses: (expenses ?? []) as Expense[],
     shares: (shares ?? []).map((s: ExpenseShare) => ({

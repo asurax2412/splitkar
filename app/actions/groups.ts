@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { computeMyBalances } from "@/lib/balances";
+import type { Expense, ExpenseShare, Payment } from "@/lib/types";
 
 export type ActionState = { error?: string } | null;
 
@@ -82,6 +84,94 @@ export async function removeMember(groupId: string, userId: string) {
     .eq("user_id", userId);
   if (error) throw error;
   revalidatePath(`/groups/${groupId}`);
+}
+
+// Leave a group. Only allowed when the caller's net balance in this group is
+// fully settled (i.e. zero with every other member). The group creator cannot
+// leave their own group — they must delete it instead.
+export async function leaveGroup(
+  groupId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+
+  const { data: group } = await supabase
+    .from("groups")
+    .select("created_by")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group) return { error: "Group not found." };
+  if (group.created_by === user.id) {
+    return {
+      error: "You created this group — you can't leave it. Delete the group instead.",
+    };
+  }
+
+  const [{ data: expenses }, { data: shares }, { data: payments }] = await Promise.all([
+    supabase.from("expenses").select("*").eq("group_id", groupId).is("deleted_at", null),
+    supabase
+      .from("expense_shares")
+      .select("expense_id, user_id, share_cents, expenses!inner(group_id)")
+      .eq("expenses.group_id", groupId),
+    supabase.from("payments").select("*").eq("group_id", groupId),
+  ]);
+
+  const balances = computeMyBalances(
+    user.id,
+    (expenses ?? []) as Expense[],
+    (shares ?? []) as ExpenseShare[],
+    (payments ?? []) as Payment[],
+  );
+  const unsettled = balances.filter((b) => b.amountCents !== 0);
+  if (unsettled.length > 0) {
+    return {
+      error:
+        "You still have unsettled balances in this group. Settle up first, then you can leave.",
+    };
+  }
+
+  const { error: delErr } = await supabase
+    .from("group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", user.id);
+  if (delErr) return { error: delErr.message };
+
+  revalidatePath("/groups");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+// Delete a group permanently. Only the group creator (admin) may do this.
+// FK constraints cascade to expenses, members, payments, invites, shares.
+export async function deleteGroup(
+  groupId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+
+  const { data: group } = await supabase
+    .from("groups")
+    .select("created_by")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group) return { error: "Group not found." };
+  if (group.created_by !== user.id) {
+    return { error: "Only the group admin can delete this group." };
+  }
+
+  const { error } = await supabase.from("groups").delete().eq("id", groupId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/groups");
+  revalidatePath("/dashboard");
+  return { ok: true };
 }
 
 // URL-safe random token. 18 bytes → 24 base64url chars; collision-resistant

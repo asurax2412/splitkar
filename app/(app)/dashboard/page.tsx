@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/money";
 import { computeMyBalances } from "@/lib/balances";
 import type { Expense, ExpenseShare, Payment, Profile } from "@/lib/types";
 import { Plus } from "lucide-react";
+import { DashboardCharts } from "@/components/dashboard-charts";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -96,6 +97,17 @@ export default async function DashboardPage() {
           )}
         </Card>
       </div>
+
+      <DashboardCharts
+        myUserId={user.id}
+        expenses={(expenses ?? []).map((e: Expense) => ({
+          id: e.id,
+          paid_by: e.paid_by,
+          amount_cents: e.amount_cents,
+          expense_date: e.expense_date,
+          category: e.category,
+        }))}
+      />
     </div>
   );
 }
