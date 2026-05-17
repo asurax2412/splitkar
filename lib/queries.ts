@@ -11,19 +11,73 @@ export async function getCurrentUser() {
 
 export async function getMyGroups() {
   const supabase = await createClient();
+  // RLS on `groups` already filters to groups the current user is a member of,
+  // so this returns one row per group (no per-member duplication).
   const { data } = await supabase
-    .from("group_members")
-    .select("group_id, groups(*)")
-    .order("joined_at", { ascending: false });
-  return (data ?? [])
-    .map((row: { groups: unknown }) => row.groups)
-    .filter(Boolean) as {
+    .from("groups")
+    .select("id, name, type, default_currency, created_at")
+    .order("created_at", { ascending: false });
+  return (data ?? []) as {
     id: string;
     name: string;
     type: string;
     default_currency: string;
     created_at: string;
   }[];
+}
+
+// All distinct people who share at least one group with the current user.
+// Used as the "friends" list. Result excludes the caller themselves.
+export async function getMyFriends() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data } = await supabase
+    .from("group_members")
+    .select("user_id, group_id, profile:profiles(id, full_name, email, avatar_url)");
+
+  const seen = new Set<string>();
+  const friends: Array<{
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url: string | null;
+    shared_group_ids: string[];
+  }> = [];
+  const groupsByUser = new Map<string, Set<string>>();
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    const userId = row.user_id as string;
+    const groupId = row.group_id as string;
+    const rawProfile = row.profile;
+    const profile = Array.isArray(rawProfile)
+      ? (rawProfile[0] as
+          | { id: string; full_name: string; email: string; avatar_url: string | null }
+          | undefined)
+      : (rawProfile as
+          | { id: string; full_name: string; email: string; avatar_url: string | null }
+          | null);
+    if (!profile || userId === user.id) continue;
+    const set = groupsByUser.get(userId) ?? new Set<string>();
+    set.add(groupId);
+    groupsByUser.set(userId, set);
+    if (!seen.has(userId)) {
+      seen.add(userId);
+      friends.push({
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email,
+        avatar_url: profile.avatar_url,
+        shared_group_ids: [],
+      });
+    }
+  }
+  for (const f of friends) {
+    f.shared_group_ids = [...(groupsByUser.get(f.id) ?? [])];
+  }
+  return friends.sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
 
 export async function getGroupData(groupId: string) {

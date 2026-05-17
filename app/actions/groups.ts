@@ -34,6 +34,37 @@ export async function createGroup(_prev: ActionState, formData: FormData): Promi
   redirect(`/groups/${groupId as string}`);
 }
 
+// Create a group and pre-populate it with the given friend user_ids.
+// Calls the security-definer RPC so it's immune to RLS edge cases.
+export async function createGroupWithFriends(input: {
+  name: string;
+  type: string;
+  currency: string;
+  memberIds: string[];
+}): Promise<{ groupId: string } | { error: string }> {
+  const name = input.name.trim();
+  if (!name) return { error: "Group name is required." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+
+  const { data: groupId, error } = await supabase.rpc("create_group_with_members", {
+    p_name: name,
+    p_type: input.type || "other",
+    p_currency: input.currency || "INR",
+    p_member_ids: input.memberIds.filter((id) => id !== user.id),
+  });
+  if (error) return { error: `Could not create group: ${error.message}` };
+  if (!groupId) return { error: "Could not create group." };
+
+  revalidatePath("/groups");
+  revalidatePath("/friends");
+  return { groupId: groupId as string };
+}
+
 export async function addMemberByEmail(
   groupId: string,
   formData: FormData,
