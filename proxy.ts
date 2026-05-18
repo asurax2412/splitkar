@@ -33,8 +33,18 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isAuthRoute = path.startsWith("/login") || path.startsWith("/signup");
+  // PWA assets are fetched without credentials (manifest, service worker, icons).
+  // They must be public or the browser sees an HTML login redirect instead of the file.
+  const isPwaAsset =
+    path === "/manifest.json" ||
+    path === "/sw.js" ||
+    /\.(png|jpg|jpeg|gif|webp|svg|ico|webmanifest)$/.test(path);
   const isPublic =
-    path === "/" || isAuthRoute || path.startsWith("/auth/") || path.startsWith("/_next");
+    path === "/" ||
+    isAuthRoute ||
+    isPwaAsset ||
+    path.startsWith("/auth/") ||
+    path.startsWith("/_next");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
