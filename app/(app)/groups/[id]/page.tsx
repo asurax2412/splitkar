@@ -50,12 +50,16 @@ export default async function GroupDetailPage({
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Link href={`/groups/${id}/expenses/new`}>
-            <Button size="sm"><Plus className="h-4 w-4" /> Add expense</Button>
+            <Button size="sm" className="whitespace-nowrap">
+              <Plus className="h-4 w-4 shrink-0" /> Add expense
+            </Button>
           </Link>
           <Link href={`/groups/${id}/settle`}>
-            <Button size="sm" variant="outline"><ArrowRightLeft className="h-4 w-4" /> Settle</Button>
+            <Button size="sm" variant="outline" className="whitespace-nowrap">
+              <ArrowRightLeft className="h-4 w-4 shrink-0" /> Settle
+            </Button>
           </Link>
         </div>
       </div>
