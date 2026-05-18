@@ -31,14 +31,14 @@
   "screenshots": [
     {
       "src": "/screenshot-desktop.png",
-      "sizes": "1280x720",
+      "sizes": "1918x943",
       "type": "image/png",
       "form_factor": "wide",
       "label": "SplitKar dashboard on desktop"
     },
     {
       "src": "/screenshot-mobile.png",
-      "sizes": "750x1334",
+      "sizes": "217x468",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "SplitKar on mobile"
