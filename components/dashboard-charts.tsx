@@ -38,6 +38,16 @@ const COLORS = [
   "#84cc16", // lime
 ];
 
+const AXIS_TICK = { fill: "#94a3b8", fontSize: 11 };
+const GRID_STROKE = "rgba(148,163,184,0.18)";
+const TOOLTIP_STYLE = {
+  background: "#0f172a",
+  border: "1px solid rgba(148,163,184,0.25)",
+  borderRadius: 8,
+  color: "#e2e8f0",
+  fontSize: 12,
+};
+
 function bucketKey(dateStr: string, g: Granularity): string {
   const d = new Date(dateStr);
   if (g === "year") return String(d.getFullYear());
@@ -149,14 +159,42 @@ export function DashboardCharts({
             <p className="text-sm font-medium mb-2 capitalize">By {g}</p>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={timeSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="label" fontSize={11} />
-                  <YAxis fontSize={11} tickFormatter={(v) => `₹${v}`} />
-                  <Tooltip
-                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                <BarChart
+                  data={timeSeries}
+                  margin={{ top: 8, right: 12, left: 4, bottom: 0 }}
+                  barCategoryGap="25%"
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={AXIS_TICK}
+                    axisLine={{ stroke: GRID_STROKE }}
+                    tickLine={false}
                   />
-                  <Bar dataKey="total" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  <YAxis
+                    tick={AXIS_TICK}
+                    axisLine={false}
+                    tickLine={false}
+                    width={56}
+                    tickFormatter={(v) =>
+                      v >= 1000 ? `₹${Math.round(v / 1000)}k` : `₹${v}`
+                    }
+                  />
+                  <Tooltip
+                    cursor={{ fill: "rgba(148,163,184,0.08)" }}
+                    contentStyle={TOOLTIP_STYLE}
+                    labelStyle={{ color: "#94a3b8" }}
+                    formatter={(value) => [
+                      formatMoney(Math.round(Number(value) * 100)),
+                      "Total",
+                    ]}
+                  />
+                  <Bar
+                    dataKey="total"
+                    fill="#22c55e"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={56}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -173,20 +211,59 @@ export function DashboardCharts({
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={75}
-                    label={(entry) => String(entry.name ?? "")}
+                    innerRadius={42}
+                    outerRadius={78}
+                    paddingAngle={2}
+                    stroke="rgba(15,23,42,0.6)"
+                    strokeWidth={2}
+                    label={({ percent }) =>
+                      percent && percent >= 0.06
+                        ? `${Math.round(percent * 100)}%`
+                        : ""
+                    }
+                    labelLine={false}
                   >
                     {categoryData.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(value, name) => [
+                      formatMoney(Math.round(Number(value) * 100)),
+                      String(name),
+                    ]}
                   />
-                  <Legend fontSize={11} />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: 11, color: "#cbd5e1" }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
+            {categoryData.length > 0 && (
+              <ul className="mt-3 space-y-1 text-xs">
+                {categoryData.slice(0, 4).map((c, i) => {
+                  const pct = grandTotal > 0
+                    ? Math.round((c.value * 10000) / (grandTotal / 100)) / 100
+                    : 0;
+                  return (
+                    <li key={c.name} className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 truncate">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ background: COLORS[i % COLORS.length] }}
+                        />
+                        <span className="truncate">{c.name}</span>
+                      </span>
+                      <span className="text-muted-foreground tabular-nums whitespace-nowrap">
+                        {formatMoney(Math.round(c.value * 100))} · {pct}%
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       )}

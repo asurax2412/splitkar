@@ -135,10 +135,10 @@ export function FriendsList({ friends }: { friends: Friend[] }) {
                   value={groupType}
                   onChange={(e) => setGroupType(e.target.value)}
                 >
-                  <option value="trip">Trip</option>
-                  <option value="home">Home</option>
-                  <option value="couple">Couple</option>
-                  <option value="other">Other</option>
+                  <option value="trip">🧳 Trip</option>
+                  <option value="home">🏠 Home</option>
+                  <option value="couple">💑 Couple</option>
+                  <option value="other">👥 Other</option>
                 </Select>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}

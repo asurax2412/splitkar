@@ -15,6 +15,21 @@ type Member = { id: string; name: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: "", label: "Uncategorized" },
+  { value: "Food", label: "🍔 Food & drink" },
+  { value: "Groceries", label: "🛒 Groceries" },
+  { value: "Travel", label: "✈️ Travel" },
+  { value: "Transport", label: "🚗 Transport" },
+  { value: "Lodging", label: "🏨 Lodging" },
+  { value: "Entertainment", label: "🎬 Entertainment" },
+  { value: "Shopping", label: "🛍️ Shopping" },
+  { value: "Utilities", label: "💡 Utilities" },
+  { value: "Rent", label: "🏠 Rent" },
+  { value: "Health", label: "🏥 Health" },
+  { value: "Other", label: "📦 Other" },
+];
+
 export type ExpenseInitial = {
   expenseId: string;
   description: string;
@@ -25,6 +40,7 @@ export type ExpenseInitial = {
   participants: string[];
   values: Record<string, number>;
   notes: string | null;
+  category: string | null;
 };
 
 export function ExpenseForm({
@@ -60,6 +76,7 @@ export function ExpenseForm({
     }
     return out;
   });
+  const [category, setCategory] = useState(initial?.category ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -117,7 +134,7 @@ export function ExpenseForm({
           currency: defaultCurrency,
           paidBy,
           expenseDate,
-          category: null,
+          category: category || null,
           notes: notes || null,
           splitType,
           participants,
@@ -181,6 +198,21 @@ export function ExpenseForm({
           {members.map((m) => (
             <option key={m.id} value={m.id}>
               {m.id === myId ? `${m.name} (you)` : m.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="category">Category</Label>
+        <Select
+          id="category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
             </option>
           ))}
         </Select>

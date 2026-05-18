@@ -22,10 +22,10 @@ export function NewGroupForm() {
       <div>
         <Label htmlFor="type">Type</Label>
         <Select id="type" name="type" defaultValue="other">
-          <option value="trip">Trip</option>
-          <option value="home">Home</option>
-          <option value="couple">Couple</option>
-          <option value="other">Other</option>
+          <option value="trip">🧳 Trip</option>
+          <option value="home">🏠 Home</option>
+          <option value="couple">💑 Couple</option>
+          <option value="other">👥 Other</option>
         </Select>
       </div>
       <div>

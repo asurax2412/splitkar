@@ -11,6 +11,13 @@ import { InviteLinkButton } from "@/components/invite-link-button";
 import { GroupDangerActions } from "@/components/group-danger-actions";
 import { Plus, Receipt, ArrowRightLeft, Pencil } from "lucide-react";
 
+const typeIcon: Record<string, string> = {
+  trip: "🧳",
+  home: "🏠",
+  couple: "💑",
+  other: "👥",
+};
+
 export default async function GroupDetailPage({
   params,
 }: {
@@ -32,11 +39,16 @@ export default async function GroupDetailPage({
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">{group.name}</h1>
-          <p className="text-sm text-muted-foreground capitalize">
-            {group.type} · {members.length} member{members.length !== 1 ? "s" : ""}
-          </p>
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="text-3xl leading-none mt-0.5" aria-hidden>
+            {typeIcon[group.type] ?? "👥"}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold truncate">{group.name}</h1>
+            <p className="text-sm text-muted-foreground capitalize">
+              {group.type} · {members.length} member{members.length !== 1 ? "s" : ""}
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Link href={`/groups/${id}/expenses/new`}>

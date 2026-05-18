@@ -44,6 +44,7 @@ export default async function EditExpensePage({
     participants: expShares.map((s) => s.user_id),
     values: initialValues,
     notes: expense.notes,
+    category: expense.category,
   };
 
   const memberList = members
